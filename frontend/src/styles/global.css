@@ -1,0 +1,117 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 引用 chip */
+.cite-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  margin: 0 2px;
+  font-size: 0.82em;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: baseline;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.cite-chip:hover {
+  background: var(--el-color-primary-light-7);
+}
+.cite-chip .copy-icon {
+  opacity: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  transition: opacity 0.15s;
+}
+.cite-chip:hover .copy-icon {
+  opacity: 1;
+}
+.cite-chip.highlight {
+  outline: 2px solid var(--el-color-primary);
+  background: var(--el-color-primary-light-7);
+}
+
+/* 引用悬浮预览卡片 */
+.cite-popover {
+  position: fixed;
+  z-index: 3000;
+  max-width: 360px;
+  padding: 12px 14px;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  box-shadow: var(--el-box-shadow-light);
+  font-size: 13px;
+  line-height: 1.6;
+  pointer-events: none;
+}
+.cite-popover .cite-popover-head {
+  font-weight: 600;
+  color: var(--el-color-primary);
+  margin-bottom: 6px;
+}
+.cite-popover .cite-popover-body {
+  color: var(--el-text-color-regular);
+  max-height: 200px;
+  overflow: auto;
+}
+
+/* 回答 markdown 排版 */
+.answer-markdown {
+  line-height: 1.75;
+  word-break: break-word;
+  color: var(--el-text-color-primary);
+}
+.answer-markdown p {
+  margin: 0.5em 0;
+}
+.answer-markdown h1,
+.answer-markdown h2,
+.answer-markdown h3 {
+  margin: 0.8em 0 0.4em;
+}
+.answer-markdown ul,
+.answer-markdown ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+.answer-markdown code {
+  background: var(--el-fill-color-light);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.answer-markdown pre {
+  background: var(--el-fill-color-light);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.answer-markdown pre code {
+  background: transparent;
+  padding: 0;
+}
+.answer-markdown table {
+  border-collapse: collapse;
+}
+.answer-markdown th,
+.answer-markdown td {
+  border: 1px solid var(--el-border-color);
+  padding: 4px 8px;
+}

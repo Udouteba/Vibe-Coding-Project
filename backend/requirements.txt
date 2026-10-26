@@ -1,0 +1,34 @@
+# 给排水智库 - 后端依赖
+# Python 3.12+
+
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]
+asyncmy
+pydantic
+pydantic-settings
+PyJWT
+bcrypt
+python-multipart
+
+# LangChain / LangGraph（RAG 链路 + Agent）
+langchain-core
+langchain-community
+langchain-openai
+langchain-text-splitters
+langchain-huggingface
+langchain-chroma
+langgraph
+
+# 向量库 + 本地中文 embedding
+chromadb
+# sentence-transformers 6.x / transformers 5.x 对 BGE(BERT) 模型不兼容，锁定稳定版本
+sentence-transformers==2.7.0
+transformers>=4.40,<5.0
+
+# 文档解析
+pymupdf
+docx2txt
+
+# 检索缓存
+cachetools
