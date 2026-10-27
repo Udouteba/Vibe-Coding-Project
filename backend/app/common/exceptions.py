@@ -1,4 +1,5 @@
 """业务异常与全局异常处理，统一输出 Response(code, message, data)。"""
+
 import logging
 
 from fastapi import FastAPI, Request
@@ -40,8 +41,8 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def global_handler(request: Request, exc: Exception):
-        logger.exception("未捕获异常: %s", exc)
+        logger.error("未捕获异常", exc_info=exc)
         return JSONResponse(
             status_code=500,
-            content={"code": 500, "message": f"服务器内部错误: {exc}", "data": None},
+            content={"code": 500, "message": "服务器内部错误", "data": None},
         )

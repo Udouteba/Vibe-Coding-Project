@@ -1,5 +1,7 @@
 """RAG 检索与置信度判断。"""
+
 from config import settings
+
 from . import vector_store_service
 
 

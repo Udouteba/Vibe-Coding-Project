@@ -1,4 +1,5 @@
 """JWT 鉴权依赖：get_current_user（登录即可）/ get_current_admin（管理员）。"""
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -1,0 +1,8 @@
+# 给排水智库 - 开发/测试依赖
+# 安装：pip install -r requirements-dev.txt
+
+pytest
+pytest-asyncio
+httpx
+aiosqlite
+ruff

@@ -1,4 +1,6 @@
 """全局配置：从 backend/.env 读取，导出若干常量。"""
+
+import logging
 import os
 from pathlib import Path
 
@@ -13,9 +15,7 @@ class Settings(BaseSettings):
     )
 
     # 数据库
-    DATABASE_URL: str = (
-        "mysql+asyncmy://root:123456@127.0.0.1:3306/drainage?charset=utf8mb4"
-    )
+    DATABASE_URL: str = "mysql+asyncmy://root:123456@127.0.0.1:3306/drainage?charset=utf8mb4"
 
     # JWT
     JWT_SECRET_KEY: str = "change-me"
@@ -55,6 +55,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.JWT_SECRET_KEY == "change-me":
+    logging.getLogger("drainage").warning(
+        "JWT_SECRET_KEY 仍为默认值 'change-me'，请在生产环境通过 .env 覆盖"
+    )
 
 # 在 huggingface_hub 读取前写入环境变量，确保 BGE 模型加载走国内镜像 + 离线
 os.environ["HF_ENDPOINT"] = settings.HF_ENDPOINT

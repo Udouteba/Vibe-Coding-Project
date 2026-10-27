@@ -13,9 +13,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.get("")
-async def list_users(
-    db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)
-):
+async def list_users(db: AsyncSession = Depends(get_db), admin: User = Depends(get_current_admin)):
     users = await user_service.list_users(db)
     return ok([UserOut.model_validate(u).model_dump() for u in users])
 

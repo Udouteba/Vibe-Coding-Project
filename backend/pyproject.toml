@@ -1,0 +1,27 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+# 行长度交给 ruff format 处理，不做 lint 报错
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "config"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI/Pydantic 的依赖注入与校验器作为默认参数是标准写法，不算 B008 可变默认值问题
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Query",
+    "pydantic.Field",
+]

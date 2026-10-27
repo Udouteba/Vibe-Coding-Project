@@ -11,6 +11,7 @@ export function usernameError(v) {
 export function passwordError(v) {
   if (!v) return null
   if (v.length < 8) return '密码至少 8 位'
+  if (v.length > 72) return '密码不能超过 72 位'
   if (!/^[A-Za-z0-9_]+$/.test(v)) return '密码只能包含英文字母、数字、下划线'
   let kinds = 0
   if (/[A-Z]/.test(v)) kinds++

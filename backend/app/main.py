@@ -1,4 +1,5 @@
 """应用入口：建表、挂载路由、静态文件、全局异常、演示账号。"""
+
 import os
 from contextlib import asynccontextmanager
 
@@ -8,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, select, text
 
 from config import UPLOAD_DIR, VECTOR_DIR
+
 from . import models  # noqa: F401  触发模型注册
 from .api import api_router
 from .common.exceptions import register_exception_handlers

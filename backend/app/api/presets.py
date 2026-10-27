@@ -12,9 +12,7 @@ router = APIRouter(prefix="/presets", tags=["presets"])
 
 
 @router.get("")
-async def list_presets(
-    db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)
-):
+async def list_presets(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     presets = await preset_service.list_presets(db, user.id)
     return ok([PresetOut.model_validate(p).model_dump() for p in presets])
 

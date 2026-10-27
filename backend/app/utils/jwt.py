@@ -1,4 +1,5 @@
 """JWT 生成与解析。"""
+
 import time
 
 import jwt
@@ -15,10 +16,8 @@ def create_token(user_id: int) -> str:
 
 def decode_token(token: str) -> dict:
     try:
-        return jwt.decode(
-            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
-        )
+        return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="登录已过期，请重新登录")
+        raise HTTPException(status_code=401, detail="登录已过期，请重新登录") from None
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="无效的登录凭证")
+        raise HTTPException(status_code=401, detail="无效的登录凭证") from None

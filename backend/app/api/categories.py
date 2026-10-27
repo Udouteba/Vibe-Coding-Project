@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import CATEGORIES
+
 from ..common.response import ok
 from ..database import get_db
 from ..dependencies.auth import get_current_user

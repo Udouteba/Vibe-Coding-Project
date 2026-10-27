@@ -1,4 +1,5 @@
 """向量库服务：ChromaDB 按专业分片（每专业一个 collection）+ 检索缓存。"""
+
 import hashlib
 import logging
 
@@ -12,9 +13,7 @@ logger = logging.getLogger("drainage")
 
 _embeddings: HuggingFaceEmbeddings | None = None
 _stores: dict[str, Chroma] = {}
-_cache: TTLCache = TTLCache(
-    maxsize=settings.RETRIEVE_CACHE_MAX, ttl=settings.RETRIEVE_CACHE_TTL
-)
+_cache: TTLCache = TTLCache(maxsize=settings.RETRIEVE_CACHE_MAX, ttl=settings.RETRIEVE_CACHE_TTL)
 
 # Chroma 集合名仅支持 [a-zA-Z0-9._-]，分类为中文，需映射为 ASCII slug
 _CATEGORY_SLUGS = {

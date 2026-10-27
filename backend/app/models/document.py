@@ -16,7 +16,9 @@ class Document(Base):
     code: Mapped[str] = mapped_column(String(128), default="")
     version: Mapped[str] = mapped_column(String(64), default="")  # 版本 / 年份
     category: Mapped[str] = mapped_column(String(64), index=True, default="其他")
-    status: Mapped[str] = mapped_column(String(32), default="pending")  # pending/indexing/ready/failed
+    status: Mapped[str] = mapped_column(
+        String(32), default="pending"
+    )  # pending/indexing/ready/failed
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
     file_name: Mapped[str] = mapped_column(String(255), default="")
     file_path: Mapped[str] = mapped_column(String(512), default="")
@@ -27,9 +29,7 @@ class Document(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
 
-    chunks = relationship(
-        "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
-    )
+    chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
 
 
 class DocumentChunk(Base):

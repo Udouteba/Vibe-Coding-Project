@@ -1,4 +1,5 @@
 """检索范围预设方案。"""
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

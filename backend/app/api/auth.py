@@ -10,7 +10,6 @@ from ..schemas.auth import (
     LoginRequest,
     RegisterRequest,
     ThemeUpdate,
-    TokenOut,
     UserOut,
 )
 from ..services import auth_service

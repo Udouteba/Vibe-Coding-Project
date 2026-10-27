@@ -1,4 +1,5 @@
 """文档管理：上传 / 解析 / 切分 / 索引 / 删除 / 重索引。"""
+
 import asyncio
 import os
 import uuid
@@ -11,6 +12,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, UPLOAD_DIR, settings
+
 from ..common.exceptions import BusinessError
 from ..database import SessionLocal
 from ..models import Document, DocumentChunk
@@ -156,7 +158,7 @@ async def index_document(doc_id: int) -> None:
             doc.status = "failed"
             doc.error = str(e)
             await db.commit()
-        raise BusinessError(f"索引失败: {e}")
+        raise BusinessError(f"索引失败: {e}") from e
 
 
 async def delete_document(db: AsyncSession, doc_id: int) -> None:

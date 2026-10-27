@@ -1,4 +1,5 @@
 """用户名与密码规则校验（注册 / 管理员建号 / 改密共用）。"""
+
 import re
 
 from ..common.exceptions import BusinessError

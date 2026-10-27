@@ -3,6 +3,7 @@
 链路：预检索（取回条文 + 引用编号）→ LangGraph create_react_agent
 （ChatOpenAI/DeepSeek + search_regulations 工具）→ SSE 流式输出。
 """
+
 import asyncio
 import json
 from typing import AsyncGenerator
@@ -13,6 +14,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 from config import settings
+
 from ..database import SessionLocal
 from ..models import Message
 from ..schemas.chat import ChatRequest
@@ -48,10 +50,10 @@ def _make_tool(retrieved: list[dict]):
         parts = []
         for i, item in enumerate(retrieved, 1):
             head = (
-                f"[{i}] 《{item['title']}》{item['code']}"
-                f"（{item['version']}版）{item['chapter']} {item['clause']}"
+                f"[{i}] 《{item.get('title', '')}》{item.get('code', '')}"
+                f"（{item.get('version', '')}版）{item.get('chapter', '')} {item.get('clause', '')}"
             )
-            parts.append(f"{head}\n{item['content']}")
+            parts.append(f"{head}\n{item.get('content', '')}")
         return "\n\n".join(parts)
 
     return search_regulations

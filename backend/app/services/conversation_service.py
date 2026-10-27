@@ -1,4 +1,5 @@
 """会话与消息：创建 / 列表 / 重命名 / 置顶 / 归档 / 删除 / 历史消息。"""
+
 from datetime import datetime
 
 from sqlalchemy import delete, select
@@ -34,9 +35,7 @@ async def create_conversation(db: AsyncSession, user_id: int, title: str | None)
 
 
 async def list_conversations(db: AsyncSession, user_id: int) -> list[dict]:
-    result = await db.execute(
-        select(Conversation).where(Conversation.user_id == user_id)
-    )
+    result = await db.execute(select(Conversation).where(Conversation.user_id == user_id))
     convs = [c for c in result.scalars().all() if not c.is_archived]
 
     last_by_conv: dict[int, str] = {}
@@ -48,7 +47,9 @@ async def list_conversations(db: AsyncSession, user_id: int) -> list[dict]:
         for m in msg_result.scalars().all():
             last_by_conv[m.conversation_id] = m.content
 
-    convs.sort(key=lambda c: (not c.is_pinned, c.updated_at or c.created_at), reverse=False)
+    # 置顶在前；同组内按更新时间倒序（最近在前）
+    convs.sort(key=lambda c: c.updated_at or c.created_at, reverse=True)
+    convs.sort(key=lambda c: c.is_pinned, reverse=True)
     return [_to_dict(c, last_by_conv.get(c.id)) for c in convs]
 
 
@@ -77,9 +78,7 @@ async def delete_conversation(db: AsyncSession, user_id: int, conv_id: int) -> N
 
 async def list_messages(db: AsyncSession, conversation_id: int) -> list[Message]:
     result = await db.execute(
-        select(Message)
-        .where(Message.conversation_id == conversation_id)
-        .order_by(Message.id)
+        select(Message).where(Message.conversation_id == conversation_id).order_by(Message.id)
     )
     return list(result.scalars().all())
 
