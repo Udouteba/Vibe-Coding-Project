@@ -28,10 +28,12 @@ async def create_user(db: AsyncSession, req: UserCreate) -> User:
     return user
 
 
-async def update_user(db: AsyncSession, user_id: int, req: UserUpdate) -> User:
+async def update_user(db: AsyncSession, user_id: int, req: UserUpdate, admin: User) -> User:
     user = await db.get(User, user_id)
     if user is None:
         raise BusinessError("用户不存在", 404)
+    if user_id == admin.id:
+        raise BusinessError("不能修改自己的账号")
     if req.role:
         user.role = req.role
     if req.password:

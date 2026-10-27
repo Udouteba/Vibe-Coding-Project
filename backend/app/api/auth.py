@@ -9,6 +9,7 @@ from ..schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     RegisterRequest,
+    ThemeUpdate,
     TokenOut,
     UserOut,
 )
@@ -37,6 +38,16 @@ async def change_password(
 ):
     await auth_service.change_password(db, user, req.old_password, req.new_password)
     return ok(message="密码修改成功")
+
+
+@router.patch("/theme")
+async def update_user_theme(
+    req: ThemeUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await auth_service.update_theme(db, user, req.theme)
+    return ok(message="主题已更新")
 
 
 @router.get("/me")

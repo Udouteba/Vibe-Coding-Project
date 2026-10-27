@@ -22,7 +22,7 @@
         </el-table-column>
         <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" :disabled="row.id === currentUserId" @click="openEdit(row)">编辑</el-button>
             <el-button size="small" type="danger" :disabled="row.role === 'admin'" @click="remove(row)">
               删除
             </el-button>
@@ -64,6 +64,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { createUser, deleteUser, listUsers, updateUser } from '@/api/users'
+import { getUserInfo } from '@/utils/auth'
 
 const users = ref([])
 const loading = ref(false)
@@ -71,6 +72,7 @@ const dialog = ref(false)
 const editing = ref(false)
 const editId = ref(null)
 const form = reactive({ username: '', password: '', role: 'student' })
+const currentUserId = getUserInfo()?.id
 
 async function load() {
   loading.value = true

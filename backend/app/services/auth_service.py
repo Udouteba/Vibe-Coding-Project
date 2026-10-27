@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..common.exceptions import BusinessError
 from ..models import User
+from ..schemas.auth import UserOut
 from ..utils.jwt import create_token
 from ..utils.password import hash_password, verify_password
 
@@ -26,7 +27,7 @@ async def login(db: AsyncSession, username: str, password: str) -> dict:
     token = create_token(user.id)
     return {
         "token": token,
-        "user": {"id": user.id, "username": user.username, "role": user.role},
+        "user": UserOut.model_validate(user).model_dump(),
     }
 
 
@@ -36,4 +37,11 @@ async def change_password(
     if not verify_password(old_password, user.password_hash):
         raise BusinessError("原密码错误")
     user.password_hash = hash_password(new_password)
+    await db.commit()
+
+
+async def update_theme(db: AsyncSession, user: User, theme: str) -> None:
+    if theme not in ("light", "dark"):
+        raise BusinessError("主题取值无效")
+    user.theme = theme
     await db.commit()

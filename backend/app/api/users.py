@@ -37,7 +37,7 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
-    user = await user_service.update_user(db, user_id, req)
+    user = await user_service.update_user(db, user_id, req, admin)
     return ok(UserOut.model_validate(user).model_dump(), "更新成功")
 
 

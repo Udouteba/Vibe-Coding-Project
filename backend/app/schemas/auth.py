@@ -24,9 +24,14 @@ class UserOut(BaseModel):
     id: int
     username: str
     role: str
+    theme: str | None = None
     created_at: datetime | None = None
 
 
 class TokenOut(BaseModel):
     token: str
     user: UserOut
+
+
+class ThemeUpdate(BaseModel):
+    theme: str

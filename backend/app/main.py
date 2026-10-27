@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 
 from config import UPLOAD_DIR, VECTOR_DIR
 from . import models  # noqa: F401  触发模型注册
@@ -26,12 +26,22 @@ async def seed_demo_users() -> None:
         await db.commit()
 
 
+def _ensure_theme_column(sync_conn) -> None:
+    """为已存在的 users 表补 theme 列（create_all 不会给旧表加列）。"""
+    columns = [c["name"] for c in inspect(sync_conn).get_columns("users")]
+    if "theme" not in columns:
+        sync_conn.execute(
+            text("ALTER TABLE users ADD COLUMN theme VARCHAR(16) NOT NULL DEFAULT 'light'")
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     os.makedirs(VECTOR_DIR, exist_ok=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_theme_column)
     await seed_demo_users()
     yield
 

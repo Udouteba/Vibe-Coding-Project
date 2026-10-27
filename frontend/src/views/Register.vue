@@ -38,15 +38,18 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { register } from '@/api/auth'
+import { forceLight } from '@/utils/theme'
 
 const router = useRouter()
 const loading = ref(false)
 const form = reactive({ username: '', password: '', confirm: '' })
+
+onMounted(forceLight)
 
 async function submit() {
   if (form.password !== form.confirm) {

@@ -9,28 +9,26 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { applyTheme } from '@/utils/theme'
+import { getUserInfo, setUserInfo } from '@/utils/auth'
+import { updateTheme } from '@/api/auth'
 
 const isDark = ref(false)
 
-function apply() {
-  document.documentElement.classList.toggle('dark', isDark.value)
-}
-
 function toggle() {
   isDark.value = !isDark.value
-  apply()
-  localStorage.setItem('drainage_theme', isDark.value ? 'dark' : 'light')
+  applyTheme(isDark.value)
+  const theme = isDark.value ? 'dark' : 'light'
+  const user = getUserInfo()
+  if (user) {
+    user.theme = theme
+    setUserInfo(user)
+  }
+  updateTheme(theme).catch(() => {})
 }
 
 onMounted(() => {
-  const saved = localStorage.getItem('drainage_theme')
-  if (saved === 'dark') {
-    isDark.value = true
-  } else if (saved === 'light') {
-    isDark.value = false
-  } else {
-    isDark.value = window.matchMedia('(prefers-color-scheme: dark)').matches
-  }
-  apply()
+  isDark.value = getUserInfo()?.theme === 'dark'
+  applyTheme(isDark.value)
 })
 </script>
