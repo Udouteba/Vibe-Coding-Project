@@ -18,8 +18,15 @@
         <el-form-item label="原密码">
           <el-input v-model="form.old_password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="新密码">
-          <el-input v-model="form.new_password" type="password" show-password />
+        <el-form-item label="新密码" :error="newPasswordErr">
+          <el-input
+            v-model="form.new_password"
+            type="password"
+            show-password
+            placeholder="至少 8 位，含大小写/数字两类"
+            @blur="onBlurNewPassword"
+            @input="newPasswordErr = ''"
+          />
         </el-form-item>
         <el-form-item label="确认新密码">
           <el-input v-model="form.confirm" type="password" show-password />
@@ -37,16 +44,31 @@ import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { changePassword } from '@/api/auth'
 import { getUserInfo, logout } from '@/utils/auth'
+import { passwordError } from '@/utils/validators'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const user = getUserInfo()
 const loading = ref(false)
 const form = reactive({ old_password: '', new_password: '', confirm: '' })
+const newPasswordErr = ref('')
+
+function onBlurNewPassword() {
+  newPasswordErr.value = passwordError(form.new_password) || ''
+}
 
 async function submit() {
-  if (!form.old_password || !form.new_password) {
-    ElMessage.warning('请填写完整')
+  if (!form.old_password) {
+    ElMessage.warning('请输入原密码')
+    return
+  }
+  if (!form.new_password) {
+    ElMessage.warning('请输入新密码')
+    return
+  }
+  const newPasswordMsg = passwordError(form.new_password)
+  if (newPasswordMsg) {
+    ElMessage.warning(newPasswordMsg)
     return
   }
   if (form.new_password !== form.confirm) {

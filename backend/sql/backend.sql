@@ -7,9 +7,10 @@ USE drainage;
 
 CREATE TABLE IF NOT EXISTS users (
   id            BIGINT NOT NULL AUTO_INCREMENT,
-  username      VARCHAR(64) NOT NULL,
+  username      VARCHAR(20) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role          VARCHAR(16) NOT NULL DEFAULT 'student',
+  theme         VARCHAR(16) NOT NULL DEFAULT 'light',
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_username (username)

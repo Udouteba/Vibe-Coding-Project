@@ -3,16 +3,24 @@
     <el-card class="auth-card">
       <h2 class="auth-title">💧 给排水智库 · 注册</h2>
       <el-form @submit.prevent="submit">
-        <el-form-item>
-          <el-input v-model="form.username" placeholder="用户名（2-32 字符）" :prefix-icon="User" />
+        <el-form-item :error="usernameErr">
+          <el-input
+            v-model="form.username"
+            placeholder="用户名（5-20 位字母/数字/下划线）"
+            :prefix-icon="User"
+            @blur="onBlurUsername"
+            @input="usernameErr = ''"
+          />
         </el-form-item>
-        <el-form-item>
+        <el-form-item :error="passwordErr">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="密码（至少 3 位）"
+            placeholder="密码（至少 8 位，含大小写/数字两类）"
             show-password
             :prefix-icon="Lock"
+            @blur="onBlurPassword"
+            @input="passwordErr = ''"
           />
         </el-form-item>
         <el-form-item>
@@ -44,14 +52,43 @@ import { ElMessage } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
 import { register } from '@/api/auth'
 import { forceLight } from '@/utils/theme'
+import { passwordError, usernameError } from '@/utils/validators'
 
 const router = useRouter()
 const loading = ref(false)
 const form = reactive({ username: '', password: '', confirm: '' })
+const usernameErr = ref('')
+const passwordErr = ref('')
 
 onMounted(forceLight)
 
+function onBlurUsername() {
+  usernameErr.value = usernameError(form.username) || ''
+}
+
+function onBlurPassword() {
+  passwordErr.value = passwordError(form.password) || ''
+}
+
 async function submit() {
+  if (!form.username) {
+    ElMessage.warning('请输入用户名')
+    return
+  }
+  const usernameMsg = usernameError(form.username)
+  if (usernameMsg) {
+    ElMessage.warning(usernameMsg)
+    return
+  }
+  if (!form.password) {
+    ElMessage.warning('请输入密码')
+    return
+  }
+  const passwordMsg = passwordError(form.password)
+  if (passwordMsg) {
+    ElMessage.warning(passwordMsg)
+    return
+  }
   if (form.password !== form.confirm) {
     ElMessage.warning('两次输入的密码不一致')
     return

@@ -33,15 +33,23 @@
 
     <el-dialog v-model="dialog" :title="editing ? '编辑用户' : '新建用户'" width="420px">
       <el-form label-width="80px">
-        <el-form-item label="用户名">
-          <el-input v-model="form.username" :disabled="editing" />
+        <el-form-item label="用户名" :error="usernameErr">
+          <el-input
+            v-model="form.username"
+            :disabled="editing"
+            placeholder="5-20 位字母/数字/下划线"
+            @blur="onBlurUsername"
+            @input="usernameErr = ''"
+          />
         </el-form-item>
-        <el-form-item label="密码">
+        <el-form-item label="密码" :error="passwordErr">
           <el-input
             v-model="form.password"
             type="password"
             show-password
-            :placeholder="editing ? '留空则不修改' : '至少 3 位'"
+            :placeholder="editing ? '留空则不修改' : '至少 8 位，含大小写/数字两类'"
+            @blur="onBlurPassword"
+            @input="passwordErr = ''"
           />
         </el-form-item>
         <el-form-item label="角色">
@@ -65,6 +73,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { createUser, deleteUser, listUsers, updateUser } from '@/api/users'
 import { getUserInfo } from '@/utils/auth'
+import { passwordError, usernameError } from '@/utils/validators'
 
 const users = ref([])
 const loading = ref(false)
@@ -72,6 +81,8 @@ const dialog = ref(false)
 const editing = ref(false)
 const editId = ref(null)
 const form = reactive({ username: '', password: '', role: 'student' })
+const usernameErr = ref('')
+const passwordErr = ref('')
 const currentUserId = getUserInfo()?.id
 
 async function load() {
@@ -102,14 +113,44 @@ function openEdit(row) {
   dialog.value = true
 }
 
+function onBlurUsername() {
+  if (editing.value) return
+  usernameErr.value = usernameError(form.username) || ''
+}
+
+function onBlurPassword() {
+  passwordErr.value = passwordError(form.password) || ''
+}
+
 async function save() {
   if (editing.value) {
+    if (form.password) {
+      const msg = passwordError(form.password)
+      if (msg) {
+        ElMessage.warning(msg)
+        return
+      }
+    }
     const data = { role: form.role }
     if (form.password) data.password = form.password
     await updateUser(editId.value, data)
   } else {
-    if (!form.username || !form.password) {
-      ElMessage.warning('请填写用户名和密码')
+    if (!form.username) {
+      ElMessage.warning('请输入用户名')
+      return
+    }
+    const usernameMsg = usernameError(form.username)
+    if (usernameMsg) {
+      ElMessage.warning(usernameMsg)
+      return
+    }
+    if (!form.password) {
+      ElMessage.warning('请输入密码')
+      return
+    }
+    const passwordMsg = passwordError(form.password)
+    if (passwordMsg) {
+      ElMessage.warning(passwordMsg)
       return
     }
     await createUser({ username: form.username, password: form.password, role: form.role })

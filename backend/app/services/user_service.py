@@ -6,6 +6,7 @@ from ..common.exceptions import BusinessError
 from ..models import User
 from ..schemas.user import UserCreate, UserUpdate
 from ..utils.password import hash_password
+from ..utils.validators import validate_password, validate_username
 
 
 async def list_users(db: AsyncSession) -> list[User]:
@@ -14,6 +15,8 @@ async def list_users(db: AsyncSession) -> list[User]:
 
 
 async def create_user(db: AsyncSession, req: UserCreate) -> User:
+    validate_username(req.username)
+    validate_password(req.password)
     exists = await db.scalar(select(User).where(User.username == req.username))
     if exists:
         raise BusinessError("用户名已存在")
@@ -37,6 +40,7 @@ async def update_user(db: AsyncSession, user_id: int, req: UserUpdate, admin: Us
     if req.role:
         user.role = req.role
     if req.password:
+        validate_password(req.password)
         user.password_hash = hash_password(req.password)
     await db.commit()
     await db.refresh(user)
