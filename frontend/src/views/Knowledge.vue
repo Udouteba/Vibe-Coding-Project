@@ -68,7 +68,9 @@
       <div v-for="c in chunks" :key="c.id" class="chunk-item">
         <div class="chunk-meta">
           <el-tag size="small" type="info">{{ c.chapter || '—' }}</el-tag>
+          <el-tag size="small" effect="plain">{{ c.section || '—' }}</el-tag>
           <el-tag size="small" effect="plain">{{ c.clause || '—' }}</el-tag>
+          <el-tag v-if="c.page" size="small" type="warning">P.{{ c.page }}</el-tag>
           <span>分片 #{{ c.chunk_index }}</span>
         </div>
         <div class="chunk-content">{{ c.content }}</div>

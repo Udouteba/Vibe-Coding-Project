@@ -5,9 +5,10 @@ import os
 import uuid
 from pathlib import Path
 
+import fitz  # pymupdf
 from fastapi import UploadFile
 from langchain_community.document_loaders import Docx2txtLoader, PyMuPDFLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document as LCDocument
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,23 +17,26 @@ from config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, UPLOAD_DIR, settings
 from ..common.exceptions import BusinessError
 from ..database import SessionLocal
 from ..models import Document, DocumentChunk
-from ..utils.citation import extract_chapter, extract_clause
-from . import vector_store_service
-
-SEPARATORS = ["\n\n", "\n", "。", "；", "，", " ", ""]
-
-
-def _splitter() -> RecursiveCharacterTextSplitter:
-    return RecursiveCharacterTextSplitter(
-        chunk_size=settings.CHUNK_SIZE,
-        chunk_overlap=settings.CHUNK_OVERLAP,
-        separators=SEPARATORS,
-    )
+from ..utils.citation import split_clauses
+from . import ocr_service, vector_store_service
 
 
 def _load_file(path: str):
     ext = Path(path).suffix.lower()
     if ext == ".pdf":
+        doc = fitz.open(path)
+        try:
+            has_text = any(page.get_text().strip() for page in doc)
+        finally:
+            doc.close()
+        if has_text:
+            return PyMuPDFLoader(path).load()
+        if settings.OCR_ENABLED:
+            pages = ocr_service.extract_pdf_text(path)
+            return [
+                LCDocument(page_content=p["text"], metadata={"page": p["page"]})
+                for p in pages
+            ]
         return PyMuPDFLoader(path).load()
     if ext == ".docx":
         return Docx2txtLoader(path).load()
@@ -40,15 +44,9 @@ def _load_file(path: str):
 
 
 def _split_and_annotate(raw_docs) -> list[dict]:
-    chunks = []
-    for c in _splitter().split_documents(raw_docs):
-        text = c.page_content.strip()
-        if not text:
-            continue
-        chunks.append(
-            {"content": text, "chapter": extract_chapter(text), "clause": extract_clause(text)}
-        )
-    return chunks
+    """语义条文切块：按「1.X.X 条文」切分，页码取每页序号（1-based）。"""
+    pages = [{"page": i, "text": d.page_content} for i, d in enumerate(raw_docs, 1)]
+    return split_clauses(pages, settings.CLAUSE_MAX_CHARS)
 
 
 def _store_chunks(
@@ -63,8 +61,11 @@ def _store_chunks(
             "code": code,
             "version": version,
             "category": category,
-            "chapter": c["chapter"],
-            "clause": c["clause"],
+            "chapter": c.get("chapter", ""),
+            "section": c.get("section", ""),
+            "clause": c.get("clause", ""),
+            "page": c.get("page", ""),
+            "has_table": c.get("has_table", False),
             "chunk_index": i,
         }
         for i, c in enumerate(chunks)
@@ -87,7 +88,7 @@ async def create_document(
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
-        raise BusinessError("文件过大，最大支持 20MB")
+        raise BusinessError("文件过大，最大支持 80MB")
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     safe_name = f"{uuid.uuid4().hex}{ext}"
@@ -143,8 +144,10 @@ async def index_document(doc_id: int) -> None:
                         document_id=doc_id,
                         chunk_index=i,
                         content=c["content"],
-                        chapter=c["chapter"],
-                        clause=c["clause"],
+                        chapter=c.get("chapter", ""),
+                        section=c.get("section", ""),
+                        clause=c.get("clause", ""),
+                        page=c.get("page", ""),
                         vector_id=ids[i],
                     )
                 )

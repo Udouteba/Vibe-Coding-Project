@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_index  INT NOT NULL,
   content      TEXT NOT NULL,
   chapter      VARCHAR(128) NOT NULL DEFAULT '',
+  section      VARCHAR(128) NOT NULL DEFAULT '',
   clause       VARCHAR(128) NOT NULL DEFAULT '',
+  page         VARCHAR(32) NOT NULL DEFAULT '',
   vector_id    VARCHAR(128) NOT NULL DEFAULT '',
   PRIMARY KEY (id),
   KEY idx_chunks_document_id (document_id)

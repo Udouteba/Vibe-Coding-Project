@@ -21,7 +21,9 @@ def _normalize(item: dict) -> dict:
         "version": item.get("version", ""),
         "category": item.get("category", ""),
         "chapter": item.get("chapter", ""),
+        "section": item.get("section", ""),
         "clause": item.get("clause", ""),
+        "page": item.get("page", ""),
         "content": item.get("content", ""),
         "score": round(float(item.get("score", 0.0)), 4),
     }

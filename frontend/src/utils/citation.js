@@ -4,6 +4,7 @@ export function formatCitation(item) {
   if (item.version) s += `（${item.version}版）`
   if (item.chapter) s += ` ${item.chapter}`
   if (item.clause) s += ` ${item.clause}`
+  if (item.page) s += ` P.${item.page}`
   return s
 }
 

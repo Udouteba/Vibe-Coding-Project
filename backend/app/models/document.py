@@ -42,7 +42,9 @@ class DocumentChunk(Base):
     chunk_index: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     chapter: Mapped[str] = mapped_column(String(128), default="")
+    section: Mapped[str] = mapped_column(String(128), default="")
     clause: Mapped[str] = mapped_column(String(128), default="")
+    page: Mapped[str] = mapped_column(String(32), default="")
     vector_id: Mapped[str] = mapped_column(String(128), default="")
 
     document = relationship("Document", back_populates="chunks")

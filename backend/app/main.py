@@ -37,6 +37,25 @@ def _ensure_theme_column(sync_conn) -> None:
         )
 
 
+def _ensure_chunk_columns(sync_conn) -> None:
+    """为已存在的 document_chunks 表补 section/page 列（create_all 不会给旧表加列）。"""
+    columns = [c["name"] for c in inspect(sync_conn).get_columns("document_chunks")]
+    if "section" not in columns:
+        sync_conn.execute(
+            text(
+                "ALTER TABLE document_chunks ADD COLUMN section VARCHAR(128) "
+                "NOT NULL DEFAULT ''"
+            )
+        )
+    if "page" not in columns:
+        sync_conn.execute(
+            text(
+                "ALTER TABLE document_chunks ADD COLUMN page VARCHAR(32) "
+                "NOT NULL DEFAULT ''"
+            )
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -44,6 +63,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_theme_column)
+        await conn.run_sync(_ensure_chunk_columns)
     await seed_demo_users()
     yield
 

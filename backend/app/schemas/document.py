@@ -26,4 +26,6 @@ class DocumentChunkOut(BaseModel):
     chunk_index: int
     content: str
     chapter: str
+    section: str
     clause: str
+    page: str

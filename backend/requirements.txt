@@ -30,5 +30,12 @@ transformers>=4.40,<5.0
 pymupdf
 docx2txt
 
+# OCR（扫描件识别 + 表格结构还原，PP-Structure）
+# 版本锁定：paddle 3.3.x 有 oneDNN PIR 回归崩溃；paddle/paddleocr 与 numpy 2.x 组合在 Windows CPU 推理 segfault
+paddlepaddle==3.2.0
+paddleocr==3.5.0
+numpy==1.26.4
+pandas<3.0
+
 # 检索缓存
 cachetools
