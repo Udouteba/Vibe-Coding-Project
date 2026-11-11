@@ -9,19 +9,27 @@
 
 | 日志 | 主题 | 状态 |
 | --- | --- | --- |
+| [2026-11-11-六方案编码完成与实测.md](./2026-11-11-六方案编码完成与实测.md) | 六方案（OCR/切块/真工具检索/Rerank/意图路由/注入防护）编码 + 端到端实测 + 依赖踩坑 | 已编码，未提交 |
+| [2026-11-08-RAG提示词注入防护方案.md](./2026-11-08-RAG提示词注入防护方案.md) | 提示词注入防护（prompt 强化 + delimiter + 注入过滤） | 已编码 |
+| [2026-11-08-RAG输入意图路由方案.md](./2026-11-08-RAG输入意图路由方案.md) | 输入意图路由（LLM 分类 + 模糊边界处理） | 已编码 |
+| [2026-11-04-RAG检索重排Rerank方案.md](./2026-11-04-RAG检索重排Rerank方案.md) | 检索 Rerank 重排（bge-reranker-base，召回20→精排6） | 已编码 |
+| [2026-11-04-RAG对话真工具检索方案.md](./2026-11-04-RAG对话真工具检索方案.md) | 对话模块真工具检索改造（多轮追问 + 引用编号去重） | 已编码 |
+| [2026-11-04-RAG切块方案.md](./2026-11-04-RAG切块方案.md) | RAG 条文语义切块方案 + 规范归属溯源 | 已编码 |
+| [2026-11-04-扫描件OCR与表格解析方案.md](./2026-11-04-扫描件OCR与表格解析方案.md) | 扫描件 OCR + 表格解析方案（PaddleOCR/PP-Structure） | 已编码 |
+| [2026-11-04-前后端单元测试与规范审查.md](./2026-11-04-前后端单元测试与规范审查.md) | 前后端单元测试 + 规范审查修复 + 测试 subagent | 已合并 main 并推送 |
 | [2026-10-27-bugfix-权限主题与账号密码校验.md](./2026-10-27-bugfix-权限主题与账号密码校验.md) | 权限 / 主题按账号记住 / 账号密码规则校验 | 已合并 main 并推送 |
 | [2026-10-27-给排水智库-RAG系统开发完成.md](./2026-10-27-给排水智库-RAG系统开发完成.md) | RAG 系统开发完成 | 已完成 |
 
 ## 项目文件地图
 
 ### 后端 `backend/`
-- `config.py` — 配置（LLM/DB/JWT/HF 镜像/embedding）
-- `app/main.py` — 入口：建表、`_ensure_theme_column` 迁移、演示账号播种、路由挂载
+- `config.py` — 配置（LLM/DB/JWT/HF 镜像/embedding/OCR/Rerank/切块）
+- `app/main.py` — 入口：建表、`_ensure_theme_column`/`_ensure_chunk_columns` 迁移、演示账号播种、路由挂载
 - `app/api/` — 路由层：`auth` `users` `chat` `documents` `conversations` `presets` `categories`
-- `app/services/` — 业务：`agent_service`（RAG+SSE）、`document_service`、`vector_store_service`、`rag_service`、`auth_service`、`user_service`、`conversation_service`、`preset_service`
-- `app/models/` — ORM：`user` / `document`（含 chunk）/ `conversation`（含 message）/ `preset`
+- `app/services/` — 业务：`agent_service`（RAG+SSE+意图路由+注入防护）、`document_service`（OCR/语义切块）、`vector_store_service`（检索+Rerank）、`rag_service`、`ocr_service`（扫描件 OCR）、`intent_service`（意图分类）、`auth_service`、`user_service`、`conversation_service`、`preset_service`
+- `app/models/` — ORM：`user` / `document`（含 chunk，chunk 带 section/page）/ `conversation`（含 message）/ `preset`
 - `app/schemas/` — Pydantic 请求/响应
-- `app/utils/` — `validators.py`（账号密码规则）、`password.py`、`jwt.py`、`citation.py`
+- `app/utils/` — `validators.py`、`password.py`、`jwt.py`、`citation.py`（split_clauses 语义切块）、`injection_guard.py`（注入过滤）
 - `app/dependencies/auth.py` — JWT 鉴权（`get_current_user` / `get_current_admin`）
 - `app/common/` — 统一 `Response` + 全局异常处理
 - `sql/backend.sql` — 建库建表脚本（含演示账号）
@@ -63,5 +71,8 @@ npm run dev
 
 - 账号密码校验前后端必须一致：`backend/app/utils/validators.py` ↔ `frontend/src/utils/validators.js`
 - 主题按账号存 `users.theme`，迁移在 `app/main.py::_ensure_theme_column`
+- 分片溯源字段 `section/page` 存 `document_chunks`，迁移在 `app/main.py::_ensure_chunk_columns`
+- OCR/Rerank 依赖版本已锁定（`requirements.txt`），勿轻易升级 paddle/paddleocr/numpy——踩坑详见 [[2026-11-11-六方案编码完成与实测]]
+- Rerank 只排序、score 保留 cosine（`RETRIEVE_MIN_SCORE` 阈值语义不变）
 - 新增模型须在 `app/models/__init__.py` import（触发 `create_all` 建表）
 - 测试套件：后端 pytest（`backend/tests/`）+ ruff，前端 Vitest（`frontend/tests/`），详见下方「测试」
