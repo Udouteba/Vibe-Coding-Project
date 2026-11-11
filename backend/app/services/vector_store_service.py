@@ -12,6 +12,7 @@ from config import settings
 logger = logging.getLogger("drainage")
 
 _embeddings: HuggingFaceEmbeddings | None = None
+_reranker = None
 _stores: dict[str, Chroma] = {}
 _cache: TTLCache = TTLCache(maxsize=settings.RETRIEVE_CACHE_MAX, ttl=settings.RETRIEVE_CACHE_TTL)
 
@@ -44,6 +45,32 @@ def get_embeddings() -> HuggingFaceEmbeddings:
     return _embeddings
 
 
+def get_reranker():
+    """懒加载 bge-reranker 精排模型单例（优先本地缓存，回退 HF 下载）。"""
+    global _reranker
+    if _reranker is None:
+        from sentence_transformers import CrossEncoder
+
+        model = _find_local_reranker(settings.RERANK_MODEL_NAME) or settings.RERANK_MODEL_NAME
+        logger.info("加载 rerank 模型: %s", model)
+        _reranker = CrossEncoder(model, max_length=settings.RERANK_MAX_LENGTH)
+    return _reranker
+
+
+def _find_local_reranker(model_name: str) -> str | None:
+    """在 modelscope 缓存中查找已下载的模型，避免重复走 HF 下载（hf-mirror 易限流）。"""
+    from pathlib import Path
+
+    repo = model_name.replace("/", "--")
+    base = Path.home() / ".cache" / "modelscope" / "models" / repo / "snapshots"
+    if not base.exists():
+        return None
+    for snap in sorted(base.iterdir()):
+        if (snap / "config.json").exists():
+            return str(snap)
+    return None
+
+
 def get_store(category: str) -> Chroma:
     if category not in _stores:
         _stores[category] = Chroma(
@@ -73,7 +100,7 @@ def delete_document(category: str, document_id: int) -> None:
 
 
 def search(query: str, scope_docs: list, k: int) -> list[dict]:
-    """按专业分片检索：对各专业 collection 分别查询，再按相关度合并排序。"""
+    """按专业分片检索：粗召回 N 条 → Rerank 精排取 top k，score 保留 cosine。"""
     if not scope_docs:
         return []
 
@@ -86,13 +113,14 @@ def search(query: str, scope_docs: list, k: int) -> list[dict]:
     if cached is not None:
         return cached
 
+    recall_n = settings.RERANK_RECALL_N if settings.RERANK_ENABLED else k
     merged: list[dict] = []
     for cat, docs in by_cat.items():
         store = get_store(cat)
         ids = [d.id for d in docs]
         try:
             results = store.similarity_search_with_relevance_scores(
-                query, k=k, filter={"document_id": {"$in": ids}}
+                query, k=recall_n, filter={"document_id": {"$in": ids}}
             )
         except Exception as e:  # 空 collection 或过滤无结果时兜底
             logger.warning("检索 %s 失败: %s", cat, e)
@@ -103,7 +131,23 @@ def search(query: str, scope_docs: list, k: int) -> list[dict]:
             meta["score"] = score
             merged.append(meta)
 
-    merged.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-    merged = merged[:k]
+    if not merged:
+        _cache[key] = []
+        return []
+
+    if settings.RERANK_ENABLED and len(merged) > k:
+        try:
+            pairs = [(query, item["content"]) for item in merged]
+            rerank_scores = get_reranker().predict(pairs)
+            ranked = sorted(zip(merged, rerank_scores, strict=False), key=lambda x: x[1], reverse=True)
+            merged = [item for item, _ in ranked[:k]]
+        except Exception as e:  # 模型未下载或加载失败时回退 cosine 排序
+            logger.warning("Rerank 精排失败，回退 cosine 排序: %s", e)
+            merged.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            merged = merged[:k]
+    else:
+        merged.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        merged = merged[:k]
+
     _cache[key] = merged
     return merged
