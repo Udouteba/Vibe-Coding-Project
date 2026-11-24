@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     OCR_WM_WORDS: str = "住房城乡建设部,信息公开,浏览专用"  # 水印黑名单（逗号分隔独立词）
     OCR_MODEL_DIR: str = ""           # 为空走默认下载；可指向离线模型目录
 
+    # 分批 OCR（大文件：子进程分批 + 断点续传，隔离 paddle 与 torch 的 OpenMP 冲突）
+    OCR_BATCH_SIZE: int = 20            # 每批处理页数
+    OCR_AUTO_SPLIT_THRESHOLD: int = 30  # 总页数超过此值才分批（≤ 则单批一次跑完）
+    OCR_WORKER_TIMEOUT: int = 1800      # 单批子进程超时（秒），默认 30 分钟
+    OCR_MAX_RETRY: int = 2              # 单批失败/超时的重试次数
+
     # Agent
     AGENT_RECURSION_LIMIT: int = 10
 

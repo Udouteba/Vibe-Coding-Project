@@ -1,6 +1,9 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..common.exceptions import BusinessError
 from ..common.response import ok
 from ..database import get_db
 from ..dependencies.auth import get_current_admin, get_current_user
@@ -9,6 +12,18 @@ from ..schemas.document import DocumentChunkOut, DocumentOut
 from ..services import document_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+
+def _background_index(doc_id: int) -> None:
+    """后台执行索引任务。失败状态已由 index_document 内部标记，此处吞异常避免未捕获任务告警。"""
+
+    async def _run() -> None:
+        try:
+            await document_service.index_document(doc_id)
+        except Exception:
+            pass
+
+    asyncio.create_task(_run())
 
 
 @router.get("")
@@ -30,9 +45,8 @@ async def upload_document(
     admin: User = Depends(get_current_admin),
 ):
     doc = await document_service.create_document(db, title, code, version, category, file)
-    await document_service.index_document(doc.id)
-    fresh = await db.get(Document, doc.id)
-    return ok(DocumentOut.model_validate(fresh).model_dump(), "上传并索引成功")
+    _background_index(doc.id)
+    return ok(DocumentOut.model_validate(doc).model_dump(), "上传成功，正在后台解析索引")
 
 
 @router.delete("/{doc_id}")
@@ -51,9 +65,14 @@ async def reindex_document(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
-    await document_service.reindex_document(doc_id)
-    fresh = await db.get(Document, doc_id)
-    return ok(DocumentOut.model_validate(fresh).model_dump(), "重新索引成功")
+    doc = await db.get(Document, doc_id)
+    if doc is None:
+        raise BusinessError("文档不存在", 404)
+    doc.status = "indexing"
+    doc.error = ""
+    await db.commit()
+    _background_index(doc_id)
+    return ok(DocumentOut.model_validate(doc).model_dump(), "已开始重新索引")
 
 
 @router.get("/{doc_id}/chunks")

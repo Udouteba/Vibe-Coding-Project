@@ -20,6 +20,8 @@ class Document(Base):
         String(32), default="pending"
     )  # pending/indexing/ready/failed
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_pages: Mapped[int] = mapped_column(Integer, default=0)  # OCR 总页数
+    processed_pages: Mapped[int] = mapped_column(Integer, default=0)  # 已处理页数（进度）
     file_name: Mapped[str] = mapped_column(String(255), default="")
     file_path: Mapped[str] = mapped_column(String(512), default="")
     error: Mapped[str] = mapped_column(String(1024), default="")

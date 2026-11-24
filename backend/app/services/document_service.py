@@ -1,7 +1,10 @@
 """文档管理：上传 / 解析 / 切分 / 索引 / 删除 / 重索引。"""
 
 import asyncio
+import json
 import os
+import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -12,35 +15,155 @@ from langchain_core.documents import Document as LCDocument
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import ALLOWED_EXTENSIONS, MAX_FILE_SIZE, UPLOAD_DIR, settings
+from config import ALLOWED_EXTENSIONS, BASE_DIR, MAX_FILE_SIZE, UPLOAD_DIR, settings
 
 from ..common.exceptions import BusinessError
 from ..database import SessionLocal
 from ..models import Document, DocumentChunk
 from ..utils.citation import split_clauses
-from . import ocr_service, vector_store_service
+from . import vector_store_service
 
 
-def _load_file(path: str):
-    ext = Path(path).suffix.lower()
+def _is_scanned_pdf(path: str) -> bool:
+    """判断 PDF 是否无文字层（需走 OCR）。"""
+    doc = fitz.open(path)
+    try:
+        return not any(page.get_text().strip() for page in doc)
+    finally:
+        doc.close()
+
+
+def _pdf_page_count(path: str) -> int:
+    doc = fitz.open(path)
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
+def _ocr_jsonl_path(doc_id: int) -> str:
+    return os.path.join(UPLOAD_DIR, f"{doc_id}.ocr.jsonl")
+
+
+def _cleanup_ocr_jsonl(doc_id: int) -> None:
+    path = _ocr_jsonl_path(doc_id)
+    if os.path.exists(path):
+        os.remove(path)
+
+
+def _read_ocr_pages(jsonl_path: str) -> dict[int, str]:
+    """读 OCR 中间文件，返回 {page_no: text}（容错跳过不完整/损坏行）。"""
+    pages: dict[int, str] = {}
+    if not os.path.exists(jsonl_path):
+        return pages
+    with open(jsonl_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                pages[obj["page"]] = obj["text"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+    return pages
+
+
+async def _update_ocr_progress(doc_id: int, processed: int) -> None:
+    async with SessionLocal() as db:
+        doc = await db.get(Document, doc_id)
+        if doc is not None:
+            doc.processed_pages = processed
+            await db.commit()
+
+
+async def _run_ocr_batch(
+    doc_id: int, file_path: str, jsonl_path: str, start: int, count: int
+) -> bool:
+    """启动一个 OCR 子进程处理 [start, start+count) 页，轮询进度，返回是否成功。"""
+    cmd = [
+        sys.executable,
+        "-m",
+        "app.ocr_worker",
+        "--pdf",
+        file_path,
+        "--out",
+        jsonl_path,
+        "--start",
+        str(start),
+        "--count",
+        str(count),
+    ]
+    for _ in range(settings.OCR_MAX_RETRY):
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(BASE_DIR),
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        deadline = time.monotonic() + settings.OCR_WORKER_TIMEOUT
+        while proc.returncode is None:
+            if time.monotonic() > deadline:
+                proc.kill()
+                break
+            await asyncio.sleep(2)
+            done = await asyncio.to_thread(_read_ocr_pages, jsonl_path)
+            await _update_ocr_progress(doc_id, len(done))
+        await proc.wait()
+        if proc.returncode == 0:
+            return True
+    return False
+
+
+async def _ocr_via_worker(file_path: str, doc_id: int) -> list[dict]:
+    """扫描件 OCR：子进程分批 + 断点续传，返回 [{page, text}]（按页码排序）。"""
+    total = await asyncio.to_thread(_pdf_page_count, file_path)
+    jsonl_path = _ocr_jsonl_path(doc_id)
+    done = await asyncio.to_thread(_read_ocr_pages, jsonl_path)
+
+    async with SessionLocal() as db:
+        doc = await db.get(Document, doc_id)
+        if doc is not None:
+            doc.total_pages = total
+            doc.processed_pages = len(done)
+            await db.commit()
+
+    batch_size = settings.OCR_BATCH_SIZE
+    if total <= settings.OCR_AUTO_SPLIT_THRESHOLD:
+        batch_size = total  # 小文件单批一次跑完，只加载一次引擎
+
+    remaining = [p for p in range(1, total + 1) if p not in done]
+    while remaining:
+        start = remaining[0]
+        count = min(batch_size, remaining[-1] - start + 1)
+        ok = await _run_ocr_batch(doc_id, file_path, jsonl_path, start, count)
+        if not ok:
+            raise BusinessError(f"OCR 子进程处理失败（第 {start} 页起 {count} 页，已重试）")
+        done = await asyncio.to_thread(_read_ocr_pages, jsonl_path)
+        remaining = [p for p in range(1, total + 1) if p not in done]
+
+    return [{"page": p, "text": done[p]} for p in sorted(done)]
+
+
+async def _parse_pdf(file_path: str, doc_id: int) -> list[LCDocument]:
+    """解析 PDF：扫描件走子进程 OCR，文字层走 PyMuPDF。"""
+    is_scanned = await asyncio.to_thread(_is_scanned_pdf, file_path)
+    if is_scanned and settings.OCR_ENABLED:
+        pages = await _ocr_via_worker(file_path, doc_id)
+        return [
+            LCDocument(page_content=p["text"], metadata={"page": p["page"]})
+            for p in pages
+        ]
+    return await asyncio.to_thread(lambda: PyMuPDFLoader(file_path).load())
+
+
+async def _parse_document(file_path: str, doc_id: int) -> list[LCDocument]:
+    ext = Path(file_path).suffix.lower()
     if ext == ".pdf":
-        doc = fitz.open(path)
-        try:
-            has_text = any(page.get_text().strip() for page in doc)
-        finally:
-            doc.close()
-        if has_text:
-            return PyMuPDFLoader(path).load()
-        if settings.OCR_ENABLED:
-            pages = ocr_service.extract_pdf_text(path)
-            return [
-                LCDocument(page_content=p["text"], metadata={"page": p["page"]})
-                for p in pages
-            ]
-        return PyMuPDFLoader(path).load()
+        return await _parse_pdf(file_path, doc_id)
     if ext == ".docx":
-        return Docx2txtLoader(path).load()
-    return TextLoader(path, autodetect_encoding=True).load()
+        return await asyncio.to_thread(lambda: Docx2txtLoader(file_path).load())
+    return await asyncio.to_thread(lambda: TextLoader(file_path, autodetect_encoding=True).load())
 
 
 def _split_and_annotate(raw_docs) -> list[dict]:
@@ -127,7 +250,7 @@ async def index_document(doc_id: int) -> None:
         version = doc.version
 
     try:
-        raw_docs = await asyncio.to_thread(_load_file, file_path)
+        raw_docs = await _parse_document(file_path, doc_id)
         chunks = await asyncio.to_thread(_split_and_annotate, raw_docs)
         if not chunks:
             raise BusinessError("文档解析后无有效内容")
@@ -155,6 +278,9 @@ async def index_document(doc_id: int) -> None:
             doc.status = "ready"
             doc.chunk_count = len(chunks)
             await db.commit()
+
+        # 索引成功后才清理 OCR 中间文件（失败保留供断点续传）
+        _cleanup_ocr_jsonl(doc_id)
     except Exception as e:
         async with SessionLocal() as db:
             doc = await db.get(Document, doc_id)
@@ -176,6 +302,7 @@ async def delete_document(db: AsyncSession, doc_id: int) -> None:
     await db.commit()
 
     await asyncio.to_thread(vector_store_service.delete_document, category, doc_id)
+    _cleanup_ocr_jsonl(doc_id)
     if file_path and os.path.exists(file_path):
         os.remove(file_path)
 

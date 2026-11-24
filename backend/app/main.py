@@ -56,6 +56,19 @@ def _ensure_chunk_columns(sync_conn) -> None:
         )
 
 
+def _ensure_document_progress_columns(sync_conn) -> None:
+    """为已存在的 documents 表补 total_pages/processed_pages 列（分批 OCR 进度）。"""
+    columns = [c["name"] for c in inspect(sync_conn).get_columns("documents")]
+    if "total_pages" not in columns:
+        sync_conn.execute(
+            text("ALTER TABLE documents ADD COLUMN total_pages INT NOT NULL DEFAULT 0")
+        )
+    if "processed_pages" not in columns:
+        sync_conn.execute(
+            text("ALTER TABLE documents ADD COLUMN processed_pages INT NOT NULL DEFAULT 0")
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -64,6 +77,7 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_theme_column)
         await conn.run_sync(_ensure_chunk_columns)
+        await conn.run_sync(_ensure_document_progress_columns)
     await seed_demo_users()
     yield
 

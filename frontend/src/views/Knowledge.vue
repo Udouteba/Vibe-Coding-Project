@@ -46,12 +46,17 @@
         <el-table-column prop="version" label="版本" width="90" />
         <el-table-column prop="category" label="专业" width="120" />
         <el-table-column prop="chunk_count" label="分片数" width="90" />
-        <el-table-column label="状态" width="110">
+        <el-table-column label="状态" width="160">
           <template #default="{ row }">
             <el-tooltip v-if="row.status === 'failed'" :content="row.error" placement="top">
               <el-tag type="danger">失败</el-tag>
             </el-tooltip>
-            <el-tag v-else :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+            <template v-else>
+              <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+              <div v-if="row.status === 'indexing' && row.total_pages" class="ocr-progress">
+                {{ row.processed_pages }}/{{ row.total_pages }} 页
+              </div>
+            </template>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="230" fixed="right">
@@ -81,7 +86,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import {
@@ -135,7 +140,7 @@ async function doUpload() {
   uploading.value = true
   try {
     await uploadDocument(fd)
-    ElMessage.success('上传并索引成功')
+    ElMessage.success('已提交，正在后台解析索引')
     form.title = ''
     form.code = ''
     form.version = ''
@@ -143,6 +148,7 @@ async function doUpload() {
     file.value = null
     fileList.value = []
     await load()
+    startPolling()
   } finally {
     uploading.value = false
   }
@@ -161,8 +167,9 @@ async function reindex(row) {
   row.reindexing = true
   try {
     await reindexDocument(row.id)
-    ElMessage.success('重新索引成功')
+    ElMessage.success('已开始重新索引')
     await load()
+    startPolling()
   } finally {
     row.reindexing = false
   }
@@ -181,8 +188,30 @@ function statusLabel(s) {
   return { ready: '已就绪', indexing: '索引中', failed: '失败', pending: '待处理' }[s] || s
 }
 
+let pollTimer = null
+
+function hasPendingIndex() {
+  return documents.value.some((d) => d.status === 'pending' || d.status === 'indexing')
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    await load()
+    if (!hasPendingIndex()) stopPolling()
+  }, 5000)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
 onMounted(async () => {
-  load()
+  await load()
+  if (hasPendingIndex()) startPolling()
   try {
     const res = await listCategories()
     categories.value = (res.data || []).map((c) => c.name)
@@ -190,6 +219,8 @@ onMounted(async () => {
     /* 忽略 */
   }
 })
+
+onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
@@ -200,6 +231,11 @@ onMounted(async () => {
 }
 .upload-card {
   margin-bottom: 20px;
+}
+.ocr-progress {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .chunk-item {
   padding: 10px 0;

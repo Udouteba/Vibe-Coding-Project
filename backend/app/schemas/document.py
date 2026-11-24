@@ -13,6 +13,8 @@ class DocumentOut(BaseModel):
     category: str
     status: str
     chunk_count: int
+    total_pages: int = 0
+    processed_pages: int = 0
     file_name: str
     uploaded_by: int | None = None
     created_at: datetime | None = None

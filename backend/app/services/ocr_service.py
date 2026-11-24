@@ -7,6 +7,7 @@
 """
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
@@ -16,6 +17,8 @@ from PIL import Image
 
 from config import settings
 
+from ..utils.latex_clean import clean_inline_latex
+
 logger = logging.getLogger("drainage")
 
 
@@ -23,31 +26,46 @@ logger = logging.getLogger("drainage")
 class Block:
     """版面分析输出块：类型 + 边界框 + 内容。"""
 
-    type: str  # text / title / table / figure
+    type: str  # text / title / table / figure / formula
     bbox: list[float]  # [x0, y0, x1, y1]
-    content: str  # 文本，或表格的 Markdown
+    content: str  # 文本、表格的 Markdown，或公式的 LaTeX
 
 
 # ---------------------------------------------------------------------------
 # 图片渲染与去水印
 # ---------------------------------------------------------------------------
 
-def pdf_to_images(path: str, dpi: int | None = None) -> list[Image.Image]:
-    """PDF 每页渲染为 RGB 图（PIL 'RGB' 模式，供 PP-Structure 3 通道输入）。"""
+def iter_pdf_images(
+    path: str,
+    dpi: int | None = None,
+    start_page: int = 1,
+    page_count: int | None = None,
+) -> Iterator[Image.Image]:
+    """逐页渲染 PDF 为 RGB 图（生成器，边渲染边释放，避免长文档一次性占用全部内存）。
+
+    start_page（1-based）/ page_count 用于分批：跳过前面页不渲染，节省时间。
+    """
     dpi = dpi or settings.OCR_DPI
     max_side = settings.OCR_MAX_SIDE
-    images: list[Image.Image] = []
+    zoom = dpi / 72.0
+    mat = fitz.Matrix(zoom, zoom)
     doc = fitz.open(path)
     try:
-        zoom = dpi / 72.0
-        mat = fitz.Matrix(zoom, zoom)
-        for page in doc:
+        for idx, page in enumerate(doc, 1):
+            if idx < start_page:
+                continue
+            if page_count is not None and idx >= start_page + page_count:
+                break
             pix = page.get_pixmap(matrix=mat, alpha=False)
             img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-            images.append(_limit_size(img, max_side))
+            yield _limit_size(img, max_side)
     finally:
         doc.close()
-    return images
+
+
+def pdf_to_images(path: str, dpi: int | None = None) -> list[Image.Image]:
+    """PDF 每页渲染为 RGB 图列表（PIL 'RGB' 模式，供 PP-Structure 3 通道输入）。"""
+    return list(iter_pdf_images(path, dpi))
 
 
 def _limit_size(img: Image.Image, max_side: int) -> Image.Image:
@@ -232,7 +250,7 @@ def _get_engine():
             use_doc_unwarping=False,
             use_textline_orientation=False,
             use_seal_recognition=False,
-            use_formula_recognition=False,
+            use_formula_recognition=True,
             use_chart_recognition=False,
             use_table_recognition=settings.OCR_USE_TABLE,
             enable_mkldnn=False,  # Windows CPU 下 paddle oneDNN PIR 回归，禁用规避
@@ -243,7 +261,9 @@ def _get_engine():
 def parse_page(img: Image.Image) -> list[Block]:
     """版面分析一页，返回按阅读顺序的内容块（图片/页眉/页码等已跳过）。"""
     engine = _get_engine()
-    result = engine.predict(np.asarray(img))
+    # 用 np.array（可写副本）而非 np.asarray：公式识别会原地改写图像（置白公式区），
+    # np.asarray(PIL.Image) 返回只读数组会触发 "assignment destination is read-only"。
+    result = engine.predict(np.array(img))
     blocks: list[Block] = []
     for page_res in result:
         for lb in page_res["parsing_res_list"]:
@@ -256,20 +276,30 @@ def parse_page(img: Image.Image) -> list[Block]:
             if label == "table":
                 content = table_html_to_markdown(content)
                 btype = "table"
+            elif label == "formula":
+                btype = "formula"
             elif label in _TITLE_LABELS:
                 btype = "title"
             else:
                 btype = "text"
+            # 独立公式块保留 LaTeX，其余块清洗内联 $...$ 片段
+            if btype != "formula":
+                content = clean_inline_latex(content)
             blocks.append(Block(type=btype, bbox=list(lb.bbox), content=content))
     return blocks
 
 
+def ocr_page(img: Image.Image) -> str:
+    """单页 OCR：版面分析 → 正文重建 → 水印过滤，返回纯文本。"""
+    blocks = parse_page(remove_watermark(img))
+    return filter_watermark_text(reconstruct_list(blocks))
+
+
 def extract_pdf_text(path: str) -> list[dict]:
-    """扫描件入口：渲染 → 去水印 → 版面分析 → 重建文本，返回每页「页码 + 文本」。"""
+    """扫描件入口：逐页 OCR，返回每页「页码 + 文本」（单进程整本，供旧调用/测试复用）。"""
     pages: list[dict] = []
-    for page_no, img in enumerate(pdf_to_images(path), 1):
-        blocks = parse_page(remove_watermark(img))
-        text = filter_watermark_text(reconstruct_list(blocks))
+    for page_no, img in enumerate(iter_pdf_images(path), 1):
+        text = ocr_page(img)
         if text:
             pages.append({"page": page_no, "text": text})
     return pages
